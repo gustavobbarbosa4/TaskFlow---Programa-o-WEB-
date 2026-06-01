@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - TaskFlow</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body{
+            background:#f8f9fa;
+        }
+
+        .card-login{
+            max-width:400px;
+            margin:auto;
+            margin-top:10vh;
+        }
+
+        .btn-purple{
+            background:#6f42c1;
+            color:white;
+        }
+
+        .btn-purple:hover{
+            background:#5d35a3;
+            color:white;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card shadow card-login">
+        <div class="card-body">
+
+            <h2 class="text-center text-purple mb-4">
+                TaskFlow
+            </h2>
+
+            <form action="/auth/login" method="POST">
+
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input
+                        type="email"
+                        name="email"
+                        class="form-control"
+                        required>
+                </div>
+
+                <div class="mb-3">
+                    <label>Senha</label>
+                    <input
+                        type="password"
+                        name="password"
+                        class="form-control"
+                        required>
+                </div>
+
+                <button class="btn btn-purple w-100">
+                    Entrar
+                </button>
+
+            </form>
+
+            <p class="text-center mt-3">
+                Não possui conta?
+                <a href="/register">Cadastrar</a>
+            </p>
+
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

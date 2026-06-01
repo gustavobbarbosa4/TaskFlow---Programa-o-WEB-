@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta charset="UTF-8">
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<title>Editar</title>
+
+</head>
+<body>
+
+<div class="container mt-5">
+
+    <div class="card shadow">
+
+        <div class="card-body">
+
+            <h3>Editar Tarefa</h3>
+
+            <form
+                action="/tasks/edit/<%= task.id %>"
+                method="POST">
+
+                <div class="mb-3">
+
+                    <label>Título</label>
+
+                    <input
+                        type="text"
+                        name="title"
+                        class="form-control"
+                        value="<%= task.title %>"
+                        required>
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label>Descrição</label>
+
+                    <textarea
+                        name="description"
+                        class="form-control"
+                        rows="4"><%= task.description %></textarea>
+
+                </div>
+
+                <button class="btn btn-primary">
+                    Atualizar
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
