@@ -1,54 +1,87 @@
-const tasks = [];
+const db = require('../models/db');
 
-exports.listTasks = (req, res) => {
-    res.render('tasks', {
-        tasks
-    });
-}
+
+//ista tarefa apenas do utilizador logado
+exports.listTasks = async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const result = await db.query(
+            'SELECT id, titulo AS title, descricao AS description, completed FROM tarefas WHERE usuario_id = $1 ORDER BY id DESC',
+            [userId]
+        );
+        
+        res.render('tasks', {
+            tasks: result.rows
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao buscar tarefas');
+    }
+};
 
 exports.showCreateTask = (req, res) => {
     res.render('createTask');
 };
 
-exports.createTask = (req, res) => {
-    tasks.push({
-        id: Date.now(),
-        title: req.body.title,
-        description: req.body.description,
-        completed: false
-    });
-    console.log(req.body)
-    res.redirect('/tasks');
+// cria tarefa vinculada ao ID do utilizador logado
+exports.createTask = async (req, res) => {
+    const { title, description } = req.body;
+    const userId = req.session.user.id;
+    
+    try {
+        await db.query(
+            'INSERT INTO tarefas (titulo, descricao, completed, usuario_id) VALUES ($1, $2, $3, $4)',
+            [title, description, false, userId]
+        );
+        res.redirect('/tasks');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao salvar tarefa');
+    }
 };
 
-exports.showEditTask = (req, res) => {
-    const task = tasks.find(
-        t => t.id == req.params.id
-    );
 
-    res.render('editTask', {
-        task
-    });
+//buscar tarefa específica para editar
+exports.showEditTask = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await db.query(
+            'SELECT id, titulo AS title, descricao AS description, completed FROM tarefas WHERE id = $1',
+            [id]
+        );
+        const task = result.rows[0];
+        
+        res.render('editTask', { task });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao buscar tarefa');
+    }
 };
 
-exports.editTask = (req, res) => {
-    const task = tasks.find(
-        t => t.id == req.params.id
-    );
-
-    task.title = req.body.title;
-    task.description = req.body.description;
-
-    res.redirect('/tasks');
+// atualiza tarefa no banco de dados
+exports.editTask = async (req, res) => {
+    const { id } = req.params;
+    const { title, description } = req.body;
+    try {
+        await db.query(
+            'UPDATE tarefas SET titulo = $1, descricao = $2 WHERE id = $3',
+            [title, description, id]
+        );
+        res.redirect('/tasks');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao atualizar tarefa');
+    }
 };
 
-exports.deleteTask = (req, res) => {
-    const index = tasks.findIndex(
-        t => t.id == req.params.id
-    );
-
-    tasks.splice(index, 1);
-
-    res.redirect('/tasks');
+// excluir tarefa do banco de dados
+exports.deleteTask = async (req, res) => {
+    const { id } = req.params;
+    try {
+        await db.query('DELETE FROM tarefas WHERE id = $1', [id]);
+        res.redirect('/tasks');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao excluir tarefa');
+    }
 };
-
