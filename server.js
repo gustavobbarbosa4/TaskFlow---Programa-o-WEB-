@@ -1,10 +1,19 @@
 const express = require('express');
+const session = require('express-session'); // Adicionado para gerenciar o login
 
 const authRoutes = require('./routes/authRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 
 const port = 3000;
 const app = express();
+
+// Configuração de sessão para o relacionamento do banco
+app.use(session({
+    secret: 'chave-secreta-do-taskflow',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false }
+}));
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
