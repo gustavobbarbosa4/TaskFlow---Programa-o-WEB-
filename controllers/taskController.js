@@ -44,14 +44,28 @@ exports.createTask = async (req, res) => {
 //buscar tarefa específica para editar
 exports.showEditTask = async (req, res) => {
     const { id } = req.params;
+    const userId = req.session.user.id;
+
     try {
         const result = await db.query(
-            'SELECT id, titulo AS title, descricao AS description, completed FROM tarefas WHERE id = $1',
-            [id]
+            `SELECT id,
+                    titulo AS title,
+                    descricao AS description,
+                    completed
+             FROM tarefas
+             WHERE id = $1
+             AND usuario_id = $2`, // permite o usuário alterar apenas as próprias tarefas
+            [id, userId]
         );
+
+        if (result.rows.length === 0) {
+            return res.status(404).send('Tarefa não encontrada');
+        }
+
         const task = result.rows[0];
-        
+
         res.render('editTask', { task });
+
     } catch (err) {
         console.error(err);
         res.status(500).send('Erro ao buscar tarefa');

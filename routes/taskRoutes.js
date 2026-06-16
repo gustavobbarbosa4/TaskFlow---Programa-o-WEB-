@@ -11,10 +11,12 @@ router.get('/create', authMiddleware, taskController.showCreateTask);
 
 router.post('/create', authMiddleware, taskController.createTask);
 
-router.get('/edit/:id', authMiddleware, taskController.showEditTask);
+router.get('/edit/:id', authMiddleware, taskController.showEditTask); //carrega a tela de edição de tarefa
 
-router.post('/edit/:id', authMiddleware, taskController.editTask);
+router.post('/edit/:id', authMiddleware, taskController.editTask); // editar tarefa
 
-router.get('/delete/:id', authMiddleware, taskController.deleteTask);
+router.get('/delete/:id', authMiddleware, taskController.deleteTask); // deletar tarefa
+
+router.get('/complete/:id', authMiddleware, taskController.completeTask); // define se a tarefa foi concluída
 
 module.exports = router;
