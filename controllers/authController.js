@@ -54,6 +54,16 @@ exports.register = async (req, res) => {
     }
 };
 
-exports.logout = (req, res) => {
-    res.send('Logout realizado')
-}
+exports.logout = (req, res) => { 
+
+    req.session.destroy((err) => { // destrói a sessão do usuário
+
+        if (err) {
+            console.error(err);
+            return res.status(500).send('Erro ao realizar logout');
+        }
+
+        res.redirect('/auth/login');
+    });
+
+};
