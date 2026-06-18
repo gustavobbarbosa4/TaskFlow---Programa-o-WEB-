@@ -43,6 +43,16 @@ async function initializeDatabase() {
             SET prioridade = 'media'
             WHERE prioridade IS NULL
         `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS tarefa_compartilhamentos (
+                id SERIAL PRIMARY KEY,
+                tarefa_id INTEGER NOT NULL REFERENCES tarefas(id) ON DELETE CASCADE,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (tarefa_id, usuario_id)
+            )
+        `);
     } catch (err) {
         console.error('erro ao preparar tabelas:', err);
     }

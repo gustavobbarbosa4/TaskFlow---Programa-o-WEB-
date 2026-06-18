@@ -17,245 +17,218 @@ function getAllowedPriority(priority) {
     return TASK_PRIORITIES.includes(priority) ? priority : 'media';
 }
 
-//ista tarefa apenas do utilizador logado
-exports.listTasks = async (req, res) => {
+function getPositiveId(value) {
+    const id = Number(value);
+    return Number.isInteger(id) && id > 0 ? id : null;
+}
 
-    try {
+async function getAccessibleTask(taskId, user) {
+    if (user.nivel_acesso === 'admin') {
+        const result = await db.query(
+            'SELECT *, true AS can_share, true AS can_delete FROM tarefas WHERE id = $1',
+            [taskId]
+        );
+        return result.rows[0];
+    }
 
-        let result;
-        let users = [];
-        const priorityFilter = TASK_PRIORITIES.includes(req.query.prioridade)
-            ? req.query.prioridade
-            : '';
-        const userFilter = Number.isInteger(Number(req.query.usuario_id)) && Number(req.query.usuario_id) > 0
-            ? Number(req.query.usuario_id)
-            : '';
+    const result = await db.query(
+        `SELECT
+            t.*,
+            (t.usuario_id = $2) AS can_share,
+            (t.usuario_id = $2) AS can_delete
+        FROM tarefas t
+        WHERE t.id = $1
+        AND (
+            t.usuario_id = $2
+            OR EXISTS (
+                SELECT 1
+                FROM tarefa_compartilhamentos tc
+                WHERE tc.tarefa_id = t.id
+                AND tc.usuario_id = $2
+            )
+        )`,
+        [taskId, user.id]
+    );
 
-        if (req.session.user.nivel_acesso === 'admin') {
+    return result.rows[0];
+}
 
-            const usersResult = await db.query(
-                'SELECT id, nome FROM usuarios ORDER BY nome'
-            );
-            users = usersResult.rows;
+async function getUsersForFilters() {
+    const result = await db.query(
+        'SELECT id, nome FROM usuarios ORDER BY nome'
+    );
+    return result.rows;
+}
 
-            const params = [];
-            const conditions = [];
+async function renderTaskList(req, res, completedView) {
+    const isAdmin = req.session.user.nivel_acesso === 'admin';
+    const priorityFilter = TASK_PRIORITIES.includes(req.query.prioridade)
+        ? req.query.prioridade
+        : '';
+    const userFilter = isAdmin ? getPositiveId(req.query.usuario_id) : null;
+    const users = await getUsersForFilters();
 
-            if (priorityFilter) {
-                params.push(priorityFilter);
-                conditions.push(`t.prioridade = $${params.length}`);
-            }
+    const params = [];
+    const conditions = [];
 
-            if (userFilter) {
-                params.push(userFilter);
-                conditions.push(`t.usuario_id = $${params.length}`);
-            }
+    conditions.push(completedView
+        ? "(t.completed = true OR t.status = 'completo')"
+        : "(t.completed = false AND t.status <> 'completo')");
 
-            const whereClause = conditions.length > 0
-                ? `WHERE ${conditions.join(' AND ')}`
-                : '';
+    if (priorityFilter) {
+        params.push(priorityFilter);
+        conditions.push(`t.prioridade = $${params.length}`);
+    }
 
-            result = await db.query(`
-                SELECT
-                    t.id,
-                    t.titulo AS title,
-                    t.descricao AS description,
-                    t.completed,
-                    t.status,
-                    t.prioridade,
-                    t.usuario_id,
-                    u.nome AS usuario
-                FROM tarefas t
-                INNER JOIN usuarios u
-                    ON u.id = t.usuario_id
-                ${whereClause}
-                ORDER BY
-                    CASE t.prioridade
-                        WHEN 'urgente' THEN 1
-                        WHEN 'alta' THEN 2
-                        WHEN 'media' THEN 3
-                        WHEN 'baixa' THEN 4
-                        ELSE 5
-                    END,
-                    t.id DESC
-            `, params);
-
-        } else {
-
-            const params = [req.session.user.id];
-            let whereClause = 'WHERE usuario_id = $1';
-
-            if (priorityFilter) {
-                params.push(priorityFilter);
-                whereClause += ' AND prioridade = $2';
-            }
-
-            result = await db.query(
-                `SELECT
-                    id,
-                    titulo AS title,
-                    descricao AS description,
-                    completed,
-                    status,
-                    prioridade
-                FROM tarefas
-                ${whereClause}
-                ORDER BY
-                    CASE prioridade
-                        WHEN 'urgente' THEN 1
-                        WHEN 'alta' THEN 2
-                        WHEN 'media' THEN 3
-                        WHEN 'baixa' THEN 4
-                        ELSE 5
-                    END,
-                    id DESC`,
-                params
-            );
-
+    if (isAdmin) {
+        if (userFilter) {
+            params.push(userFilter);
+            conditions.push(`t.usuario_id = $${params.length}`);
         }
+    } else {
+        params.push(req.session.user.id);
+        conditions.push(`(
+            t.usuario_id = $${params.length}
+            OR EXISTS (
+                SELECT 1
+                FROM tarefa_compartilhamentos tc
+                WHERE tc.tarefa_id = t.id
+                AND tc.usuario_id = $${params.length}
+            )
+        )`);
+    }
 
-        res.render('tasks', {
-            tasks: result.rows,
-            user: req.session.user,
-            priorityFilter,
-            userFilter,
-            users,
-            priorities: TASK_PRIORITIES
-        });
+    const result = await db.query(`
+        SELECT
+            t.id,
+            t.titulo AS title,
+            t.descricao AS description,
+            t.completed,
+            t.status,
+            t.prioridade,
+            t.usuario_id,
+            u.nome AS usuario,
+            (t.usuario_id = $${params.length + 1}) AS is_owner,
+            EXISTS (
+                SELECT 1
+                FROM tarefa_compartilhamentos tc
+                WHERE tc.tarefa_id = t.id
+                AND tc.usuario_id = $${params.length + 1}
+            ) AS is_shared
+        FROM tarefas t
+        INNER JOIN usuarios u
+            ON u.id = t.usuario_id
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY
+            CASE t.prioridade
+                WHEN 'urgente' THEN 1
+                WHEN 'alta' THEN 2
+                WHEN 'media' THEN 3
+                WHEN 'baixa' THEN 4
+                ELSE 5
+            END,
+            t.id DESC
+    `, [...params, req.session.user.id]);
 
+    res.render('tasks', {
+        tasks: result.rows,
+        user: req.session.user,
+        priorityFilter,
+        userFilter: userFilter || '',
+        users,
+        priorities: TASK_PRIORITIES,
+        completedView
+    });
+}
+
+exports.listTasks = async (req, res) => {
+    try {
+        await renderTaskList(req, res, false);
     } catch (err) {
-
         console.error(err);
         res.status(500).send('Erro ao buscar tarefas');
-
     }
 };
 
-// cria tarefa vinculada ao ID do utilizador logado
-exports.createTask = async (req, res) => {
+exports.listCompletedTasks = async (req, res) => {
+    try {
+        await renderTaskList(req, res, true);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao buscar tarefas concluídas');
+    }
+};
 
+exports.createTask = async (req, res) => {
     const { title, description, usuario_id } = req.body;
     const priority = getAllowedPriority(req.body.prioridade);
 
-    // REGRA:
-    // - admin pode escolher usuário
-    // - usuário comum sempre cria para si mesmo
     const userId =
         req.session.user.nivel_acesso === 'admin' && usuario_id
             ? usuario_id
             : req.session.user.id;
 
     try {
-
         await db.query(
             'INSERT INTO tarefas (titulo, descricao, completed, usuario_id, status, prioridade) VALUES ($1, $2, $3, $4, $5, $6)',
             [title, description, false, userId, 'nao_iniciado', priority]
         );
 
         res.redirect('/tasks');
-
     } catch (err) {
         console.error(err);
         res.status(500).send('Erro ao salvar tarefa');
     }
 };
 
-
-//buscar tarefa específica para editar
 exports.showEditTask = async (req, res) => {
-
     const { id } = req.params;
 
     try {
+        const task = await getAccessibleTask(id, req.session.user);
 
-        let result;
-
-        if (req.session.user.nivel_acesso === 'admin') {
-
-            result = await db.query(
-                `SELECT
-                    id,
-                    titulo AS title,
-                    descricao AS description,
-                    completed,
-                    status,
-                    prioridade
-                FROM tarefas
-                WHERE id = $1`,
-                [id]
-            );
-
-        } else {
-
-            result = await db.query(
-                `SELECT
-                    id,
-                    titulo AS title,
-                    descricao AS description,
-                    completed,
-                    status,
-                    prioridade
-                FROM tarefas
-                WHERE id = $1
-                AND usuario_id = $2`,
-                [id, req.session.user.id]
-            );
-
-        }
-
-        if (result.rows.length === 0) {
+        if (!task) {
             return res.status(404).send('Tarefa não encontrada');
         }
 
         res.render('editTask', {
-            task: result.rows[0],
+            task: {
+                id: task.id,
+                title: task.titulo,
+                description: task.descricao,
+                completed: task.completed,
+                status: task.status,
+                prioridade: task.prioridade
+            },
             user: req.session.user,
             priorities: TASK_PRIORITIES,
             statuses: req.session.user.nivel_acesso === 'admin'
                 ? TASK_STATUSES
                 : USER_TASK_STATUSES
         });
-
     } catch (err) {
-
         console.error(err);
         res.status(500).send('Erro ao buscar tarefa');
-
     }
 };
 
-// atualiza tarefa no banco de dados
 exports.editTask = async (req, res) => {
-
     const { id } = req.params;
     const { title, description } = req.body;
     const isAdmin = req.session.user.nivel_acesso === 'admin';
 
     try {
+        const task = await getAccessibleTask(id, req.session.user);
 
-        let task;
-
-        if (isAdmin) {
-            task = await db.query(
-                'SELECT * FROM tarefas WHERE id = $1',
-                [id]
-            );
-        } else {
-            task = await db.query(
-                'SELECT * FROM tarefas WHERE id = $1 AND usuario_id = $2',
-                [id, req.session.user.id]
-            );
+        if (!task) {
+            return res.status(404).send('Tarefa não encontrada');
         }
 
-        if (task.rows.length === 0) {
-            return res.status(isAdmin ? 404 : 403).send(isAdmin ? 'Tarefa não encontrada' : 'Acesso negado');
-        }
-
-        const status = getAllowedStatus(req.body.status, isAdmin, task.rows[0].status);
+        const status = getAllowedStatus(req.body.status, isAdmin, task.status);
         const completed = status === 'completo';
         const priority = isAdmin
             ? getAllowedPriority(req.body.prioridade)
-            : task.rows[0].prioridade;
+            : task.prioridade;
 
         await db.query(
             'UPDATE tarefas SET titulo = $1, descricao = $2, status = $3, completed = $4, prioridade = $5 WHERE id = $6',
@@ -263,45 +236,23 @@ exports.editTask = async (req, res) => {
         );
 
         res.redirect('/tasks');
-
     } catch (err) {
-
         console.error(err);
         res.status(500).send('Erro ao atualizar tarefa');
-
     }
 };
 
-// iniciar tarefa
 exports.startTask = async (req, res) => {
-
     const { id } = req.params;
 
     try {
+        const task = await getAccessibleTask(id, req.session.user);
 
-        let result;
-
-        if (req.session.user.nivel_acesso === 'admin') {
-
-            result = await db.query(
-                'SELECT status FROM tarefas WHERE id = $1',
-                [id]
-            );
-
-        } else {
-
-            result = await db.query(
-                'SELECT status FROM tarefas WHERE id = $1 AND usuario_id = $2',
-                [id, req.session.user.id]
-            );
-
-        }
-
-        if (result.rows.length === 0) {
+        if (!task) {
             return res.status(404).send('Tarefa não encontrada');
         }
 
-        if (result.rows[0].status !== 'nao_iniciado') {
+        if (task.status !== 'nao_iniciado') {
             return res.redirect('/tasks');
         }
 
@@ -311,32 +262,24 @@ exports.startTask = async (req, res) => {
         );
 
         res.redirect('/tasks');
-
     } catch (err) {
-
         console.error(err);
         res.status(500).send('Erro ao iniciar tarefa');
-
     }
 };
 
-// excluir tarefa do banco de dados
 exports.deleteTask = async (req, res) => {
-
     const { id } = req.params;
 
     try {
+        const task = await getAccessibleTask(id, req.session.user);
 
-        if (req.session.user.nivel_acesso !== 'admin') {
+        if (!task) {
+            return res.status(404).send('Tarefa não encontrada');
+        }
 
-            const task = await db.query(
-                'SELECT * FROM tarefas WHERE id = $1 AND usuario_id = $2',
-                [id, req.session.user.id]
-            );
-
-            if (task.rows.length === 0) {
-                return res.status(403).send('Acesso negado');
-            }
+        if (!task.can_delete) {
+            return res.status(403).send('Acesso negado');
         }
 
         await db.query(
@@ -345,91 +288,105 @@ exports.deleteTask = async (req, res) => {
         );
 
         res.redirect('/tasks');
-
     } catch (err) {
-
         console.error(err);
         res.status(500).send('Erro ao excluir tarefa');
-
     }
 };
 
-// exibir tela de criação
 exports.showCreateTask = async (req, res) => {
-
     try {
-
         let users = [];
 
         if (req.session.user.nivel_acesso === 'admin') {
-            const result = await db.query(
-                'SELECT id, nome FROM usuarios ORDER BY nome'
-            );
-            users = result.rows;
+            users = await getUsersForFilters();
         }
 
         res.render('createTask', {
             users,
             user: req.session.user
         });
-
     } catch (err) {
         console.error(err);
         res.status(500).send('Erro ao carregar tela');
     }
 };
 
-// concluir/desconcluir tarefa
 exports.completeTask = async (req, res) => {
-
     const { id } = req.params;
 
     try {
+        const task = await getAccessibleTask(id, req.session.user);
 
-        let result;
-
-        if (req.session.user.nivel_acesso === 'admin') {
-
-            result = await db.query(
-                'SELECT completed, status FROM tarefas WHERE id = $1',
-                [id]
-            );
-
-        } else {
-
-            result = await db.query(
-                'SELECT completed, status FROM tarefas WHERE id = $1 AND usuario_id = $2',
-                [id, req.session.user.id]
-            );
-
-        }
-
-        if (result.rows.length === 0) {
+        if (!task) {
             return res.status(404).send('Tarefa não encontrada');
         }
 
-        if (req.session.user.nivel_acesso !== 'admin' && result.rows[0].status === 'cancelado') {
+        if (req.session.user.nivel_acesso !== 'admin' && task.status === 'cancelado') {
             return res.status(403).send('Apenas administradores podem alterar tarefas canceladas');
         }
 
-        const novoStatus = !result.rows[0].completed;
-        const progressStatus = novoStatus ? 'completo' : 'em_desenvolvimento';
-
-        console.log('Tarefa:', id);
-        console.log('Status antigo:', result.rows[0].completed);
-        console.log('Status novo:', novoStatus);
+        const completed = !task.completed;
+        const status = completed ? 'completo' : 'em_desenvolvimento';
 
         await db.query(
             'UPDATE tarefas SET completed = $1, status = $2 WHERE id = $3',
-            [novoStatus, progressStatus, id]
+            [completed, status, id]
+        );
+
+        res.redirect(req.headers.referer && req.headers.referer.includes('/tasks/completed')
+            ? '/tasks/completed'
+            : '/tasks');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Erro ao concluir tarefa');
+    }
+};
+
+exports.shareTask = async (req, res) => {
+    const { id } = req.params;
+    const sharedUserIds = Array.isArray(req.body.usuario_ids)
+        ? req.body.usuario_ids
+        : [req.body.usuario_ids];
+
+    const validIds = sharedUserIds
+        .map(getPositiveId)
+        .filter(sharedId => sharedId !== null);
+
+    if (validIds.length === 0) {
+        return res.redirect('/tasks');
+    }
+
+    try {
+        const task = await getAccessibleTask(id, req.session.user);
+
+        if (!task) {
+            return res.status(404).send('Tarefa não encontrada');
+        }
+
+        if (!task.can_share) {
+            return res.status(403).send('Acesso negado');
+        }
+
+        const uniqueIds = [...new Set(validIds)].filter(sharedId => Number(task.usuario_id) !== sharedId);
+
+        if (uniqueIds.length === 0) {
+            return res.redirect('/tasks');
+        }
+
+        const values = uniqueIds.map((_, index) => `($1, $${index + 2})`).join(', ');
+        const params = [id, ...uniqueIds];
+
+        await db.query(
+            `INSERT INTO tarefa_compartilhamentos (tarefa_id, usuario_id)
+             VALUES ${values}
+             ON CONFLICT (tarefa_id, usuario_id) DO NOTHING`,
+            params
         );
 
         res.redirect('/tasks');
-
     } catch (err) {
-
         console.error(err);
-        res.status(500).send('Erro ao concluir tarefa');
-
+        res.status(500).send('Erro ao compartilhar tarefa');
     }
 };
