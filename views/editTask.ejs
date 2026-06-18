@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
 
 <meta charset="UTF-8">
@@ -45,6 +45,70 @@
                         class="form-control"
                         rows="4"><%= task.description %></textarea>
 
+                </div>
+
+                <div class="mb-3">
+                    <label>Status</label>
+
+                    <% if(user.nivel_acesso !== 'admin' && task.status === 'cancelado') { %>
+                        <input type="text" class="form-control" value="Cancelado" disabled>
+                        <input type="hidden" name="status" value="cancelado">
+                    <% } else { %>
+                        <select name="status" class="form-select" required>
+                            <option value="nao_iniciado" <%= task.status === 'nao_iniciado' ? 'selected' : '' %>>
+                                Não iniciado
+                            </option>
+                            <option value="iniciado" <%= task.status === 'iniciado' ? 'selected' : '' %>>
+                                Iniciado
+                            </option>
+                            <option value="em_desenvolvimento" <%= task.status === 'em_desenvolvimento' ? 'selected' : '' %>>
+                                Em desenvolvimento
+                            </option>
+                            <option value="completo" <%= task.status === 'completo' ? 'selected' : '' %>>
+                                Completo
+                            </option>
+
+                            <% if(user.nivel_acesso === 'admin') { %>
+                                <option value="cancelado" <%= task.status === 'cancelado' ? 'selected' : '' %>>
+                                    Cancelado
+                                </option>
+                            <% } %>
+                        </select>
+                    <% } %>
+                </div>
+
+                <div class="mb-3">
+                    <label>Prioridade</label>
+
+                    <% if(user.nivel_acesso === 'admin') { %>
+                        <select name="prioridade" class="form-select" required>
+                            <option value="baixa" <%= task.prioridade === 'baixa' ? 'selected' : '' %>>
+                                Baixa
+                            </option>
+                            <option value="media" <%= task.prioridade === 'media' ? 'selected' : '' %>>
+                                Média
+                            </option>
+                            <option value="alta" <%= task.prioridade === 'alta' ? 'selected' : '' %>>
+                                Alta
+                            </option>
+                            <option value="urgente" <%= task.prioridade === 'urgente' ? 'selected' : '' %>>
+                                Urgente
+                            </option>
+                        </select>
+                    <% } else { %>
+                        <% const priorityLabels = {
+                            baixa: 'Baixa',
+                            media: 'Média',
+                            alta: 'Alta',
+                            urgente: 'Urgente'
+                        }; %>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            value="<%= priorityLabels[task.prioridade] || 'Média' %>"
+                            disabled>
+                    <% } %>
                 </div>
 
                 <button class="btn btn-primary">

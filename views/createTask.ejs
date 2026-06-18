@@ -45,6 +45,29 @@
 
                 </div>
 
+                <div class="mb-3">
+                    <label>Prioridade</label>
+                    <select name="prioridade" class="form-select" required>
+                        <option value="baixa">Baixa</option>
+                        <option value="media" selected>Média</option>
+                        <option value="alta">Alta</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                </div>
+
+                <% if(user.nivel_acesso === 'admin') { %>
+                    <div class="mb-3">
+                        <label>Responsável</label>
+                        <select name="usuario_id" class="form-select">
+                            <option value="">Eu mesmo</option>
+
+                            <% users.forEach(u => { %>
+                                <option value="<%= u.id %>"><%= u.nome %></option>
+                            <% }) %>
+                        </select>
+                    </div>
+                <% } %>
+
                 <button class="btn btn-primary">
                     Salvar
                 </button>

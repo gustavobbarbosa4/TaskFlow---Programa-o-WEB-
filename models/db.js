@@ -17,4 +17,37 @@ pool.query('SELECT NOW()', (err, res) => {
     }
 });
 
+async function initializeDatabase() {
+    try {
+        await pool.query(`
+            ALTER TABLE tarefas
+            ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'nao_iniciado'
+        `);
+
+        await pool.query(`
+            ALTER TABLE tarefas
+            ADD COLUMN IF NOT EXISTS prioridade VARCHAR(20) DEFAULT 'media'
+        `);
+
+        await pool.query(`
+            UPDATE tarefas
+            SET status = CASE
+                WHEN completed = true THEN 'completo'
+                ELSE 'nao_iniciado'
+            END
+            WHERE status IS NULL
+        `);
+
+        await pool.query(`
+            UPDATE tarefas
+            SET prioridade = 'media'
+            WHERE prioridade IS NULL
+        `);
+    } catch (err) {
+        console.error('erro ao preparar tabelas:', err);
+    }
+}
+
+pool.ready = initializeDatabase();
+
 module.exports = pool;

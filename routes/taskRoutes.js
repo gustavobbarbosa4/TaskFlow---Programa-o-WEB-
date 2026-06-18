@@ -15,8 +15,10 @@ router.get('/edit/:id', authMiddleware, taskController.showEditTask); //carrega 
 
 router.post('/edit/:id', authMiddleware, taskController.editTask); // editar tarefa
 
-router.get('/delete/:id', authMiddleware, taskController.deleteTask); // deletar tarefa
+router.post('/delete/:id', authMiddleware, taskController.deleteTask); // deletar tarefa
 
-router.get('/complete/:id', authMiddleware, taskController.completeTask); // define se a tarefa foi concluída
+router.post('/complete/:id', authMiddleware, taskController.completeTask); // define se a tarefa foi concluída
+
+router.post('/start/:id', authMiddleware, taskController.startTask); // inicia a tarefa
 
 module.exports = router;

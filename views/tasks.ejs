@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -27,89 +28,241 @@ body{
     color:gray;
 }
 
+.task-meta{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
 </style>
 
 </head>
 <body>
 
 <nav class="navbar navbar-dark">
-    <div class="container">
 
-        <span class="navbar-brand">
-            TaskFlow
+<div class="container">
+
+    <span class="navbar-brand">
+        TaskFlow
+    </span>
+
+    <div class="d-flex align-items-center gap-2">
+
+        <span class="text-white">
+            Olá, <%= user.name %>
         </span>
+
+        <% if(user.nivel_acesso === 'admin') { %>
+
+            <a
+                href="/admin/users"
+                class="btn btn-warning">
+
+                Administração
+
+            </a>
+
+        <% } %>
 
         <a href="/auth/logout" class="btn btn-light">
             Sair
         </a>
 
     </div>
+
+</div>
+
 </nav>
 
 <div class="container mt-4">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
 
-        <h2>Minhas Tarefas</h2>
+    <h2>
 
-        <a href="/tasks/create"
-           class="btn btn-primary">
+        <% if(user.nivel_acesso === 'admin') { %>
 
-           Nova Tarefa
+            Todas as Tarefas
 
-        </a>
+        <% } else { %>
 
+            Minhas Tarefas
+
+        <% } %>
+
+    </h2>
+
+    <a href="/tasks/create"
+       class="btn btn-primary">
+
+       Nova Tarefa
+
+    </a>
+
+</div>
+
+<form method="GET" action="/tasks" class="row g-2 align-items-end mb-4">
+    <% if(user.nivel_acesso === 'admin') { %>
+        <div class="col-md-4">
+            <label class="form-label">Filtrar por usuário</label>
+            <select name="usuario_id" class="form-select">
+                <option value="">Todos</option>
+
+                <% users.forEach(u => { %>
+                    <option value="<%= u.id %>" <%= Number(userFilter) === Number(u.id) ? 'selected' : '' %>>
+                        <%= u.nome %>
+                    </option>
+                <% }) %>
+            </select>
+        </div>
+    <% } %>
+
+    <div class="col-md-4">
+        <label class="form-label">Filtrar por prioridade</label>
+        <select name="prioridade" class="form-select">
+            <option value="">Todas</option>
+            <option value="baixa" <%= priorityFilter === 'baixa' ? 'selected' : '' %>>Baixa</option>
+            <option value="media" <%= priorityFilter === 'media' ? 'selected' : '' %>>Média</option>
+            <option value="alta" <%= priorityFilter === 'alta' ? 'selected' : '' %>>Alta</option>
+            <option value="urgente" <%= priorityFilter === 'urgente' ? 'selected' : '' %>>Urgente</option>
+        </select>
     </div>
 
-    <% tasks.forEach(task => { %>
+    <div class="col-md-auto">
+        <button class="btn btn-outline-primary">
+            Filtrar
+        </button>
+    </div>
 
-        <div class="card shadow-sm task-card mb-3">
+    <% if(priorityFilter || userFilter) { %>
+        <div class="col-md-auto">
+            <a href="/tasks" class="btn btn-outline-secondary">
+                Limpar
+            </a>
+        </div>
+    <% } %>
+</form>
 
-            <div class="card-body">
+<% tasks.forEach(task => { %>
 
-                <div class="d-flex justify-content-between">
+    <div class="card shadow-sm task-card mb-3">
 
-                    <div class="d-flex gap-3">
+        <div class="card-body">
 
+            <div class="d-flex justify-content-between">
+
+                <div class="d-flex gap-3">
+
+                   <form action="/tasks/complete/<%= task.id %>" method="POST">
                         <input
                             type="checkbox"
                             class="form-check-input mt-2"
                             <%= task.completed ? 'checked' : '' %>
+                            <%= task.status === 'cancelado' && user.nivel_acesso !== 'admin' ? 'disabled' : '' %>
+                            onchange="this.form.submit()"
                         >
-
-                        <div>
-
-                            <h5 class="<%= task.completed ? 'completed' : '' %>">
-                                <%= task.title %>
-                            </h5>
-
-                            <p class="mb-0">
-                                <%= task.description %>
-                            </p>
-
-                        </div>
-
-                    </div>
+                    </form>
 
                     <div>
 
-                        <a
-                           href="/tasks/edit/<%= task.id %>"
-                           class="btn btn-warning btn-sm">
+                        <h5 class="<%= task.completed ? 'completed' : '' %>">
+                            <%= task.title %>
+                        </h5>
 
-                           Editar
+                        <p class="mb-0">
+                            <%= task.description %>
+                        </p>
 
-                        </a>
+                        <div class="task-meta mt-2">
+                            <% const statusLabels = {
+                                nao_iniciado: 'Não iniciado',
+                                iniciado: 'Iniciado',
+                                em_desenvolvimento: 'Em desenvolvimento',
+                                completo: 'Completo',
+                                cancelado: 'Cancelado'
+                            }; %>
 
-                        <a
-                           href="/tasks/delete/<%= task.id %>"
-                           class="btn btn-danger btn-sm">
+                            <% const priorityLabels = {
+                                baixa: 'Baixa',
+                                media: 'Média',
+                                alta: 'Alta',
+                                urgente: 'Urgente'
+                            }; %>
 
-                           Excluir
+                            <% const statusClasses = {
+                                nao_iniciado: 'secondary',
+                                iniciado: 'info',
+                                em_desenvolvimento: 'primary',
+                                completo: 'success',
+                                cancelado: 'dark'
+                            }; %>
 
-                        </a>
+                            <% const priorityClasses = {
+                                baixa: 'success',
+                                media: 'primary',
+                                alta: 'warning text-dark',
+                                urgente: 'danger'
+                            }; %>
+
+                            <span class="badge bg-<%= statusClasses[task.status] || 'secondary' %>">
+                                <%= statusLabels[task.status] || 'Não iniciado' %>
+                            </span>
+
+                            <span class="badge bg-<%= priorityClasses[task.prioridade] || 'primary' %>">
+                                Prioridade: <%= priorityLabels[task.prioridade] || 'Média' %>
+                            </span>
+                        </div>
+
+                        <% if(user.nivel_acesso === 'admin') { %>
+
+                            <small class="text-muted">
+
+                                Responsável:
+                                <strong><%= task.usuario %></strong>
+
+                            </small>
+
+                        <% } %>
 
                     </div>
+
+                </div>
+
+                <div>
+
+                    <% if(task.status === 'nao_iniciado') { %>
+                        <form
+                            action="/tasks/start/<%= task.id %>"
+                            method="POST"
+                            class="d-inline">
+
+                            <button class="btn btn-success btn-sm">
+                                Iniciar
+                            </button>
+
+                        </form>
+                    <% } %>
+
+                    <a
+                       href="/tasks/edit/<%= task.id %>"
+                       class="btn btn-warning btn-sm">
+
+                       Editar
+
+                    </a>
+
+                    <form
+                        action="/tasks/delete/<%= task.id %>"
+                        method="POST"
+                        class="d-inline"
+                        onsubmit="return confirm('Deseja realmente excluir esta tarefa?')">
+
+                        <button class="btn btn-danger btn-sm">
+                            Excluir
+                        </button>
+
+                    </form>
 
                 </div>
 
@@ -117,7 +270,9 @@ body{
 
         </div>
 
-    <% }) %>
+    </div>
+
+<% }) %>
 
 </div>
 

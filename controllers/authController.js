@@ -37,7 +37,8 @@ exports.login = async (req, res) => {
         req.session.user = {
             id: user.id,
             name: user.nome,
-            email: user.email
+            email: user.email,
+            nivel_acesso: user.nivel_acesso
         };
 
         res.redirect('/tasks');
@@ -67,8 +68,8 @@ exports.register = async (req, res) => {
 
         // Insere o novo utilizador
         await db.query(
-            'INSERT INTO usuarios (nome, email, senha) VALUES ($1, $2, $3)',
-            [name, email, hashedPassword]
+            'INSERT INTO usuarios (nome, email, senha, nivel_acesso) VALUES ($1, $2, $3, $4)',
+            [name, email, hashedPassword, 'user']
         );
 
         res.redirect('/auth/login');
